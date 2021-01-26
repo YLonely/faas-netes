@@ -239,6 +239,8 @@ spec:
           value: "{{ .Values.faasnetes.livenessProbe.periodSeconds }}"
         - name: cluster_role
           value: "{{ .Values.clusterRole }}"
+        - name: checkpoint_service_wait_interval
+          value: "{{ .Values.checkpointServiceWaitInterval }}"
         volumeMounts:
         - mountPath: /tmp
           name: faas-netes-temp-volume

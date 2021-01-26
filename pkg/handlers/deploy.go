@@ -171,6 +171,10 @@ func makeDeploymentSpec(request types.FunctionDeployment, existingSecrets map[st
 	if err != nil {
 		return nil, err
 	}
+	if startFromCheckpoint(labels) {
+		probes.Liveness = nil
+		probes.Readiness = nil
+	}
 
 	enableServiceLinks := false
 
@@ -398,4 +402,13 @@ func getMinReplicaCount(labels map[string]string) *int32 {
 	}
 
 	return nil
+}
+
+func startFromCheckpoint(labels map[string]string) bool {
+	for key := range labels {
+		if strings.HasPrefix(key, "checkpoint-") {
+			return true
+		}
+	}
+	return false
 }
