@@ -25,7 +25,7 @@ basic_auth: true
 generateBasicAuth: false
 
 # image pull policy for openfaas components, can change to `IfNotPresent` in offline env
-openfaasImagePullPolicy: "Always"
+openfaasImagePullPolicy: "IfNotPresent"
 
 # openfaasPRO components, which require openfaasPRO=true
 oidcAuthPlugin:
@@ -67,7 +67,7 @@ faasIdler:
 ## OSS components
 
 gateway:
-  image: openfaas/gateway:0.20.2
+  image: lwyan/gateway:latest-dev
   readTimeout : "65s"
   writeTimeout : "65s"
   upstreamTimeout : "60s"  # Must be smaller than read/write_timeout
@@ -96,20 +96,20 @@ basicAuthPlugin:
 
 
 faasnetes:
-  image: ghcr.io/openfaas/faas-netes:0.12.13
+  image: lwyan/faas-netes:latest-dev
   readTimeout : "60s"
   writeTimeout : "60s"
-  imagePullPolicy : "Always"    # Image pull policy for deployed functions
+  imagePullPolicy : "IfNotPresent"    # Image pull policy for deployed functions
   httpProbe: true               # Setting to true will use HTTP for readiness and liveness probe on Pods (incompatible with Istio < 1.1.5)
   setNonRootUser: false
   readinessProbe:
-    initialDelaySeconds: 2
+    initialDelaySeconds: 0
     timeoutSeconds: 1           # Tuned-in to run checks early and quickly to support fast cold-start from zero replicas
-    periodSeconds: 2            # Reduce to 1 for a faster cold-start, increase higher for lower-CPU usage
+    periodSeconds: 1            # Reduce to 1 for a faster cold-start, increase higher for lower-CPU usage
   livenessProbe:
-    initialDelaySeconds: 2
+    initialDelaySeconds: 0
     timeoutSeconds: 1
-    periodSeconds: 2           # Reduce to 1 for a faster cold-start, increase higher for lower-CPU usage
+    periodSeconds: 1           # Reduce to 1 for a faster cold-start, increase higher for lower-CPU usage
   resources:
     requests:
       memory: "120Mi"
@@ -117,7 +117,7 @@ faasnetes:
 
 # replaces faas-netes with openfaas-operator
 operator:
-  image: ghcr.io/openfaas/faas-netes:0.12.13
+  image: lwyan/faas-netes:latest-dev
   create: false
   # set this to false when creating multiple releases in the same cluster
   # must be true for the first one only
