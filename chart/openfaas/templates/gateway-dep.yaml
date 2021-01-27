@@ -215,6 +215,10 @@ spec:
           value: {{ $functionNs | quote }}
         - name: read_timeout
           value: "{{ .Values.faasnetes.readTimeout }}"
+        - name: endpoints_status_retrive_count
+          value: "{{ .Values.endpointsStatusRetriveCount }}"
+        - name: endpoints_status_retrive_interval
+          value: "{{ .Values.endpointsStatusRetriveInterval }}"
         - name: profiles_namespace
           value: {{ .Release.Namespace | quote }}
         - name: write_timeout
@@ -239,8 +243,6 @@ spec:
           value: "{{ .Values.faasnetes.livenessProbe.periodSeconds }}"
         - name: cluster_role
           value: "{{ .Values.clusterRole }}"
-        - name: checkpoint_service_wait_interval
-          value: "{{ .Values.checkpointServiceWaitInterval }}"
         volumeMounts:
         - mountPath: /tmp
           name: faas-netes-temp-volume

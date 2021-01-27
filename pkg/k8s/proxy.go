@@ -5,45 +5,38 @@
 package k8s
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/url"
 	"strings"
-	"sync"
+	"time"
 
-	corelister "k8s.io/client-go/listers/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // watchdogPort for the OpenFaaS function watchdog
 const watchdogPort = 8080
 
-func NewFunctionLookup(ns string, lister corelister.EndpointsLister) *FunctionLookup {
+func NewFunctionLookup(ns string, kubeClient kubernetes.Interface, config FunctionLookupConfig) *FunctionLookup {
 	return &FunctionLookup{
 		DefaultNamespace: ns,
-		EndpointLister:   lister,
-		Listers:          map[string]corelister.EndpointsNamespaceLister{},
-		lock:             sync.RWMutex{},
+		kubeClient:       kubeClient,
+		config:           config,
 	}
+}
+
+type FunctionLookupConfig struct {
+	RetriveCount    int
+	RetriveInterval time.Duration
 }
 
 type FunctionLookup struct {
 	DefaultNamespace string
-	EndpointLister   corelister.EndpointsLister
-	Listers          map[string]corelister.EndpointsNamespaceLister
-
-	lock sync.RWMutex
-}
-
-func (f *FunctionLookup) GetLister(ns string) corelister.EndpointsNamespaceLister {
-	f.lock.RLock()
-	defer f.lock.RUnlock()
-	return f.Listers[ns]
-}
-
-func (f *FunctionLookup) SetLister(ns string, lister corelister.EndpointsNamespaceLister) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	f.Listers[ns] = lister
+	kubeClient       kubernetes.Interface
+	config           FunctionLookupConfig
 }
 
 func getNamespace(name, defaultNamespace string) string {
@@ -55,6 +48,7 @@ func getNamespace(name, defaultNamespace string) string {
 }
 
 func (l *FunctionLookup) Resolve(name string) (url.URL, error) {
+	var urlStr string
 	functionName := name
 	namespace := getNamespace(name, l.DefaultNamespace)
 	if err := l.verifyNamespace(namespace); err != nil {
@@ -64,41 +58,35 @@ func (l *FunctionLookup) Resolve(name string) (url.URL, error) {
 	if strings.Contains(name, ".") {
 		functionName = strings.TrimSuffix(name, "."+namespace)
 	}
+	for i := 0; i < l.config.RetriveCount; i++ {
+		svc, err := l.kubeClient.CoreV1().Endpoints(namespace).Get(context.Background(), functionName, metav1.GetOptions{})
+		if err != nil {
+			return url.URL{}, fmt.Errorf("error listing \"%s.%s\": %s", functionName, namespace, err.Error())
+		}
 
-	nsEndpointLister := l.GetLister(namespace)
+		if len(svc.Subsets) == 0 || len(svc.Subsets[0].Addresses) == 0 {
+			// service is not ready for request, this may happen if the service is started from checkpoint
+			// we wait for it here
+			log.Printf("service %s.%s is not ready, wait %d", functionName, namespace, l.config.RetriveInterval.Milliseconds())
+			time.Sleep(l.config.RetriveInterval)
+			continue
+		}
 
-	if nsEndpointLister == nil {
-		l.SetLister(namespace, l.EndpointLister.Endpoints(namespace))
+		all := len(svc.Subsets[0].Addresses)
+		target := rand.Intn(all)
 
-		nsEndpointLister = l.GetLister(namespace)
+		serviceIP := svc.Subsets[0].Addresses[target].IP
+
+		urlStr = fmt.Sprintf("http://%s:%d", serviceIP, watchdogPort)
+
+		urlRes, err := url.Parse(urlStr)
+		if err != nil {
+			return url.URL{}, err
+		}
+
+		return *urlRes, nil
 	}
-
-	svc, err := nsEndpointLister.Get(functionName)
-	if err != nil {
-		return url.URL{}, fmt.Errorf("error listing \"%s.%s\": %s", functionName, namespace, err.Error())
-	}
-
-	if len(svc.Subsets) == 0 {
-		return url.URL{}, fmt.Errorf("no subsets available for \"%s.%s\"", functionName, namespace)
-	}
-
-	all := len(svc.Subsets[0].Addresses)
-	if len(svc.Subsets[0].Addresses) == 0 {
-		return url.URL{}, fmt.Errorf("no addresses in subset for \"%s.%s\"", functionName, namespace)
-	}
-
-	target := rand.Intn(all)
-
-	serviceIP := svc.Subsets[0].Addresses[target].IP
-
-	urlStr := fmt.Sprintf("http://%s:%d", serviceIP, watchdogPort)
-
-	urlRes, err := url.Parse(urlStr)
-	if err != nil {
-		return url.URL{}, err
-	}
-
-	return *urlRes, nil
+	return url.URL{}, fmt.Errorf("max status retrive count %d exceeded", l.config.RetriveCount)
 }
 
 func (l *FunctionLookup) verifyNamespace(name string) error {

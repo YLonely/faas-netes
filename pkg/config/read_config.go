@@ -6,6 +6,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"time"
 
 	ftypes "github.com/openfaas/faas-provider/types"
 )
@@ -50,6 +51,8 @@ func (ReadConfig) Read(hasEnv ftypes.HasEnv) (BootstrapConfig, error) {
 	cfg.DefaultFunctionNamespace = ftypes.ParseString(hasEnv.Getenv("function_namespace"), "default")
 	cfg.ProfilesNamespace = ftypes.ParseString(hasEnv.Getenv("profiles_namespace"), cfg.DefaultFunctionNamespace)
 	cfg.ClusterRole = ftypes.ParseBoolValue(hasEnv.Getenv("cluster_role"), false)
+	cfg.EndpointsStatusRetriveCount = ftypes.ParseIntValue(hasEnv.Getenv("endpoints_status_retrive_count"), 10)
+	cfg.EndpointsStatusRetriveInterval = ftypes.ParseIntOrDurationValue(hasEnv.Getenv("endpoints_status_retrive_interval"), 100*time.Millisecond)
 
 	cfg.HTTPProbe = httpProbe
 	cfg.SetNonRootUser = setNonRootUser
@@ -120,6 +123,9 @@ type BootstrapConfig struct {
 
 	// ClusterRole determines whether the operator should have cluster wide access
 	ClusterRole bool
+
+	EndpointsStatusRetriveInterval time.Duration
+	EndpointsStatusRetriveCount    int
 }
 
 // Fprint pretty-prints the config with the stdlib logger. One line per config value.

@@ -153,8 +153,6 @@ func runController(setup serverSetup) {
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 
-	endpointsInformer := kubeInformerFactory.Core().V1().Endpoints()
-
 	deploymentLister := kubeInformerFactory.Apps().V1().
 		Deployments().Lister()
 
@@ -166,8 +164,10 @@ func runController(setup serverSetup) {
 	go kubeInformerFactory.Start(stopCh)
 	go setup.profileInformerFactory.Start(stopCh)
 
-	lister := endpointsInformer.Lister()
-	functionLookup := k8s.NewFunctionLookup(config.DefaultFunctionNamespace, lister)
+	functionLookup := k8s.NewFunctionLookup(config.DefaultFunctionNamespace, kubeClient, k8s.FunctionLookupConfig{
+		RetriveCount:    config.EndpointsStatusRetriveCount,
+		RetriveInterval: config.EndpointsStatusRetriveInterval,
+	})
 
 	bootstrapHandlers := providertypes.FaaSHandlers{
 		FunctionProxy:        proxy.NewHandlerFunc(config.FaaSConfig, functionLookup),

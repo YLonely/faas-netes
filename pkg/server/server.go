@@ -48,8 +48,10 @@ func New(client clientset.Interface,
 		pprof = val
 	}
 
-	lister := endpointsInformer.Lister()
-	functionLookup := k8s.NewFunctionLookup(functionNamespace, lister)
+	functionLookup := k8s.NewFunctionLookup(functionNamespace, kube, faasnetesk8s.FunctionLookupConfig{
+		RetriveInterval: cfg.EndpointsStatusRetriveInterval,
+		RetriveCount:    cfg.EndpointsStatusRetriveCount,
+	})
 
 	deploymentLister := deploymentsInformer.Lister()
 	bootstrapConfig := types.FaaSConfig{

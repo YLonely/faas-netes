@@ -17,7 +17,8 @@ clusterRole: false            # Set to true to have OpenFaaS administrate multip
 
 createCRDs: true
 
-checkpointServiceWaitInterval: "200ms"
+endpointsStatusRetriveCount: 10
+endpointsStatusRetriveInterval: "100ms"
 # create pod security policies for OpenFaaS control plane
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 psp: false
